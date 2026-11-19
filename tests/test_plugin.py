@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import ssl
-import urllib.request
+import asyncio
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -103,40 +102,54 @@ async def test_sender_is_robot_shortcuts(monkeypatch: pytest.MonkeyPatch) -> Non
     assert bot.calls == []
 
 
-def test_download_bytes_verifies_tls(monkeypatch: pytest.MonkeyPatch) -> None:
-    """下载表情字节必须使用完整 TLS 验签（CERT_REQUIRED + check_hostname）。"""
+def test_download_bytes_uses_tls_verification(monkeypatch: pytest.MonkeyPatch) -> None:
+    """下载表情字节必须使用完整 TLS 验签（httpx verify=True）。"""
     captured: dict[str, Any] = {}
 
     class FakeResponse:
-        def read(self) -> bytes:
-            return b"image-bytes"
+        content = b"image-bytes"
 
-        def __enter__(self) -> FakeResponse:
-            return self
-
-        def __exit__(self, *args: Any) -> None:
+        def raise_for_status(self) -> None:
             return None
 
-    def fake_urlopen(request: Any, timeout: Any = None, context: Any = None) -> FakeResponse:
-        captured["request"] = request
-        captured["context"] = context
-        return FakeResponse()
+    class FakeClient:
+        def __init__(self, **kwargs: Any) -> None:
+            captured.update(kwargs)
 
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
-    data = plugin._download_bytes("https://example.invalid/sticker.png")
+        async def __aenter__(self) -> FakeClient:
+            return self
+
+        async def __aexit__(self, *args: Any) -> None:
+            return None
+
+        async def get(self, url: str, headers: dict[str, str] | None = None) -> FakeResponse:
+            captured["url"] = url
+            captured["headers"] = headers
+            return FakeResponse()
+
+    monkeypatch.setattr(plugin.httpx, "AsyncClient", FakeClient)
+    data = asyncio.run(plugin._download_bytes("https://example.invalid/sticker.png"))
     assert data == b"image-bytes"
-    ctx = captured["context"]
-    assert isinstance(ctx, ssl.SSLContext)
-    assert ctx.verify_mode == ssl.CERT_REQUIRED
-    assert ctx.check_hostname is True
+    assert captured.get("verify") is True
+    assert captured.get("follow_redirects") is True
 
 
 def test_download_bytes_failure_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_urlopen(*args: Any, **kwargs: Any) -> Any:
-        raise OSError("boom")
+    class FakeClient:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
 
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
-    assert plugin._download_bytes("https://example.invalid/x.png") is None
+        async def __aenter__(self) -> FakeClient:
+            return self
+
+        async def __aexit__(self, *args: Any) -> None:
+            return None
+
+        async def get(self, *args: Any, **kwargs: Any) -> Any:
+            raise OSError("boom")
+
+    monkeypatch.setattr(plugin.httpx, "AsyncClient", FakeClient)
+    assert asyncio.run(plugin._download_bytes("https://example.invalid/x.png")) is None
 
 
 def test_apply_pending_prune(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, seg: Any) -> None:

@@ -27,6 +27,8 @@
 from __future__ import annotations
 
 import asyncio
+
+import httpx
 import os
 import time
 from collections import OrderedDict
@@ -157,18 +159,19 @@ _STICKER_FETCH_CONCURRENCY = 4
 _fetch_sem = asyncio.Semaphore(_STICKER_FETCH_CONCURRENCY)
 
 
-def _download_bytes(url: str) -> bytes | None:
-    """同步下载图片字节（用 to_thread 调用，避免阻塞事件循环）。"""
-    import ssl
-    import urllib.request
-
+async def _download_bytes(url: str) -> bytes | None:
+    """异步下载图片字节（httpx，保留 TLS 验签，不阻塞事件循环）。"""
     try:
         # 保留完整 TLS 验签：表情图片 URL 来自 QQ 官方 CDN，证书合法；
         # 关闭校验会引入中间人风险（旧内网部署曾临时关过，开源版必须恢复）。
-        ctx = ssl.create_default_context()
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=_STICKER_FETCH_TIMEOUT, context=ctx) as resp:
-            return resp.read()
+        async with httpx.AsyncClient(
+            timeout=_STICKER_FETCH_TIMEOUT,
+            follow_redirects=True,
+            verify=True,
+        ) as client:
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+            resp.raise_for_status()
+            return resp.content
     except Exception as exc:
         logger.debug("[mface_pool] 下载表情字节失败: {}: {}", exc.__class__.__name__, exc)
         return None
@@ -186,7 +189,7 @@ async def _persist_sticker_bytes(record: dict) -> bool:
     if not url:
         return False
     async with _fetch_sem:
-        data = await asyncio.to_thread(_download_bytes, url)
+        data = await _download_bytes(url)
     if not data:
         return False
     return pool.save_blob(record, data)

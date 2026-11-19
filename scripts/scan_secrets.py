@@ -18,8 +18,38 @@ import subprocess
 import sys
 from pathlib import Path
 
-SKIP_DIRS = {".git", ".venv", "venv", "__pycache__", "node_modules", "dist", "build", "assets", ".pytest_cache", ".ruff_cache"}
-SKIP_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".ttf", ".ttc", ".otf", ".woff", ".woff2", ".zip", ".adx", ".so", ".pyc", ".pdf", ".db", ".sqlite"}
+SKIP_DIRS = {
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+    "assets",
+    ".pytest_cache",
+    ".ruff_cache",
+}
+SKIP_SUFFIXES = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".ico",
+    ".ttf",
+    ".ttc",
+    ".otf",
+    ".woff",
+    ".woff2",
+    ".zip",
+    ".adx",
+    ".so",
+    ".pyc",
+    ".pdf",
+    ".db",
+    ".sqlite",
+}
 
 PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("private-path", re.compile(r"/(?:home|Users)/[A-Za-z0-9._-]+/")),
@@ -27,8 +57,16 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("absolute-app-path", re.compile(r"[\"']/app/")),
     ("token", re.compile(r"\b(?:sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})")),
     ("private-key", re.compile(r"BEGIN (?:RSA |OPENSSH |EC |PGP )?PRIVATE KEY")),
-    ("secret-assignment", re.compile(r"(?i)(token|secret|passwd|password|api[_-]?key)\s*[:=]\s*[\"'][^\"'<>{}]{6,}[\"']")),
-    ("private-ip", re.compile(r"\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3})\b")),
+    (
+        "secret-assignment",
+        re.compile(r"(?i)(token|secret|passwd|password|api[_-]?key)\s*[:=]\s*[\"'][^\"'<>{}]{6,}[\"']"),
+    ),
+    (
+        "private-ip",
+        re.compile(
+            r"\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3})\b"
+        ),
+    ),
     ("qq-or-group-id", re.compile(r"(?i)(?:qq|uin|superuser|群号|群)\D{0,16}(\d{6,12})")),
 ]
 

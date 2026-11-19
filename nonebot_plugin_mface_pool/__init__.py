@@ -27,13 +27,12 @@
 from __future__ import annotations
 
 import asyncio
-
-import httpx
 import os
 import time
 from collections import OrderedDict
 from pathlib import Path
 
+import httpx
 from nonebot import get_driver, logger, on_message
 from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent, MessageSegment
 from nonebot.plugin import PluginMetadata
